@@ -1,0 +1,105 @@
+#!/usr/bin/env node
+
+// Combines and syncs corresponding video and audio channels, using ffmpeg:
+// ffmpeg -i 502621503.webm -itsoffset 00:00:00.415 -i 796540845.mp3 out.webm
+//
+// Usage: avcombine dir...
+
+var exec = require('child_process').exec,
+    path = require('path'),
+    fs = require('fs');
+
+var dirs = process.argv.slice(2);
+
+var timefmt = function timefmt(t) {
+  var pad = function pad(n, len) {
+    var s = '' + n;
+    while (s.length < len) s = '0' + s;
+    return s;
+  };
+
+  var ms = t % 1000;
+  t = (t - ms) / 1000;
+  var ss= t % 60;
+  t = (t - ss) / 60;
+  var mm = t % 60;
+  t = (t - mm) / 60;
+  var hh = t;
+
+  return [[pad(hh, 2), pad(mm, 2), pad(ss, 2)].join(':'), pad(ms, 3)].join('.');
+};
+
+var shellesc = function shellesc(str) {
+  if (!str[0] !== '"') str = '"' + str;
+  if (!str[str.length-1] !== '"') str = str + '"';
+  return str;
+};
+
+var readmeta = function readmeta(location, fn) {
+  fs.readFile(location, {encoding: 'utf8'}, function (err, data) {
+    fn(err, JSON.parse(data));
+  });
+};
+
+var combine = function combine(video, audio, offset, out, fn) {
+  var cmd = [
+    'ffmpeg',
+    '-y', // overwrite existing files, use '-n' instead to not overwrite
+    '-i ' + shellesc(video),
+    '-itsoffset ' + timefmt(offset),
+    '-i ' + shellesc(audio),
+    '-vcodec h264',
+    '-acodec libfaac',
+    shellesc(out)
+  ].join(' ');
+
+
+  exec(cmd, function (err, stdout, stderr) {
+    fn(err, out);
+  });
+};
+
+dirs.forEach(function (dir) {
+  readmeta(path.resolve(dir, 'metadata.json'), function (err, data) {
+    var audio = {}, video = {}, units = [];
+
+    if (err) throw err;
+
+    data.audio.forEach(function (a) {
+      audio[a.ssrc] = a; // map ssrc -> audio
+    });
+
+    data.video.forEach(function (v) {
+      var vf, af, ts, os, of;
+
+      if (v.type === 'RECORDING_STARTED') {
+        video[v.ssrc] = v; // map ssrc -> video
+      }
+
+      if (v.audioSsrc) {
+        vf = path.resolve(dir, video[v.ssrc].filename);
+        af = path.resolve(dir, audio[v.audioSsrc].filename);
+        os = audio[v.audioSsrc].instant - video[v.ssrc].instant;
+        ts = video[v.ssrc].instant;
+
+        of = path.resolve(dir, vf.split('.').map(function (part, i, segments) {
+          if (i == segments.length - 2) part = part + '-' + ts + '-with-audio';
+          if (i == segments.length - 1) part = 'flv';
+          return part;
+        }).join('.'));
+
+        units.push([vf, af, os, of]);
+      }
+    });
+
+    units.forEach(function (u) {
+      combine(u[0], u[1], u[2], u[3], function (err, name) {
+        if (err) {
+          console.error(err);
+        } else {
+          console.log(name);
+        }
+      });
+    });
+  });
+});

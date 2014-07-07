@@ -1,0 +1,267 @@
+#!/usr/bin/env node
+
+// Combines and syncs all video and audio channels, using ffmpeg:
+//
+// General procedure outlined at:
+// https://trac.ffmpeg.org/wiki/Create%20a%20mosaic%20out%20of%20several%20input%20videos
+//
+// Usage: mixall dir...
+
+var exec = require('child_process').exec,
+    path = require('path'),
+    fs = require('fs');
+
+var dirs = process.argv.slice(2);
+
+var timefmt = function timefmt(t) {
+  var pad = function pad(n, len) {
+    var s = '' + n;
+    while (s.length < len) s = '0' + s;
+    return s;
+  };
+
+  var ms = t % 1000;
+  t = (t - ms) / 1000;
+  var ss= t % 60;
+  t = (t - ss) / 60;
+  var mm = t % 60;
+  t = (t - mm) / 60;
+  var hh = t;
+
+  return [[pad(hh, 2), pad(mm, 2), pad(ss, 2)].join(':'), pad(ms, 3)].join('.');
+};
+
+var a = function a(n) {
+  var h = 'abcdefghijklmnopqrstuvwxyz';
+  var k = h.length;
+  var s = (n == 0) ? h[n] : '';
+  while (n > 0) {
+    s = h[n % k] + s; // map numbers to alpha characters
+    n = Math.round((n - (n % k)) / k);
+  }
+  return s;
+};
+
+var shellesc = function shellesc(str) {
+  if (!str[0] !== '"') str = '"' + str;
+  if (!str[str.length-1] !== '"') str = str + '"';
+  return str;
+};
+
+var timesort = function timesort(obj) {
+  return Object.keys(obj).sort(function (a, b) {
+    return obj[a].instant - obj[b].instant; // sort by instant, ascending
+  });
+};
+
+var readmeta = function readmeta(location, fn) {
+  fs.readFile(location, {encoding: 'utf8'}, function (err, data) {
+    fn(err, JSON.parse(data));
+  });
+};
+
+var amix = function amix(dir, videos, audios, events, out, fn) {
+  var order = timesort(audios);
+
+  var t0 = audios[order[0]].instant;
+
+  var inputs = [];
+  var delays = [];
+
+  order.forEach(function (ssrc) {
+    inputs.push(shellesc(path.resolve(dir, audios[ssrc].filename)));
+    delays.push(audios[ssrc].instant - t0);
+  });
+
+  var inputstr = inputs.map(function (f) {
+    return ['-i', f].join(' ');
+  }).join(' ');
+
+  var channels = [];
+
+  var filter = inputs.map(function (f, i) {
+    var delay = delays[i];
+    if (delay == 0) delay = 1; // ffmpeg requires delay to be >0
+    var channel = 'aud' + a(i);
+    channels.push(channel);
+    return '[' + i + ':a]adelay=' + delay + '|' + delay + '[' + channel + ']';
+  });
+
+  filter.push('[' + channels.join('][') + ']amix=inputs=' + order.length);
+
+  var filterstr = filter.join('; ');
+
+  var cmd = [
+    'ffmpeg',
+    '-y', // overwrite existing files, use '-n' instead to not overwrite
+    inputstr,
+    '-filter_complex',
+    shellesc(filterstr),
+    shellesc(out)
+  ].join(' ');
+
+  console.log(cmd);
+
+  exec(cmd, fn);
+};
+
+var VIDEO_WIDTH  = 320;
+var VIDEO_HEIGHT = 240;
+
+var vmix = function vmix(dir, videos, audios, events, out, fn) {
+  var vidorder = timesort(videos);
+
+  var t0 = videos[vidorder[0]].instant; // start time of first video stream
+
+  var vidparams = [];
+  var sqsize = Math.ceil(Math.sqrt(vidorder.length));
+  var width  = Math.round(sqsize * VIDEO_WIDTH);
+  var height = Math.round(Math.ceil(vidorder.length / sqsize) * VIDEO_HEIGHT);
+
+  vidorder.forEach(function (ssrc, i) {
+    var src, x, y, w, h, delay;
+
+    src = videos[ssrc].filename;
+
+    w = VIDEO_WIDTH;
+    h = VIDEO_HEIGHT;
+    x = Math.round((i % sqsize) * w);
+    y = Math.round(((i - (i % sqsize)) / sqsize) * h);
+
+    delay = videos[ssrc].instant - t0;
+
+    vidparams.push({src: src, x: x, y: y, w: w, h: h, delay: delay});
+  });
+
+  // Video input arguments (file path and time offset)
+  var vidargstr = vidparams.map(function (v, i) {
+    var args = ['-i', shellesc(path.resolve(dir, v.src))];
+    if (i > 0) args.unshift('-itsoffset', timefmt(v.delay));
+    return args.join(' ');
+  }).join(' ');
+
+  var filter = ['nullsrc=size=' + width + 'x' + height + ' [bg]'];
+
+  // Apply resizing and cropping to all input videos and name input streams
+  vidparams.forEach(function (v, i) {
+    var scale, crop;
+
+    // scale to fill area
+    scale = 'scale=\'if(gt(a,' + VIDEO_WIDTH + '/' + VIDEO_HEIGHT + '),-1,' +
+      VIDEO_WIDTH + ')\':\'if(gt(a,' + VIDEO_WIDTH + '/' + VIDEO_HEIGHT +
+      '),' + VIDEO_HEIGHT + ',-1)\'';
+
+    // crop to tile size
+    crop = 'crop=' + VIDEO_WIDTH + ':' + VIDEO_HEIGHT;
+
+    filter.push('[' + i + ':v] ' + scale + ', ' + crop + ' [vid' + a(i) + ']');
+  });
+
+  // Overlay input videos in a tiled view
+  vidparams.forEach(function (v, i) {
+    var prev, next, res, f;
+
+    prev = (i == 0) ? '[bg]' : '[tmp' + a(i-1) + ']';
+    next = '[vid' + a(i) + ']';
+    res  = '[tmp' + a(i) + ']'
+
+    f = [
+      prev + next,
+      'overlay=shortest=1:x=' + v.x + ':y=' + v.y,
+    ];
+
+    if (i < vidparams.length - 1) f.push(res);
+
+    filter.push(f.join(' '));
+  });
+
+  var filterstr = filter.join('; ');
+
+  var cmd = [
+    'ffmpeg',
+    '-y', // overwrite existing files, use '-n' instead to not overwrite
+    vidargstr,
+    '-filter_complex',
+    shellesc(filterstr),
+    '-vcodec h264',
+    '-acodec libfaac',
+    shellesc(out)
+  ].join(' ');
+
+  console.log(cmd);
+
+  exec(cmd, fn);
+};
+
+var combine = function combine(video, audio, offset, out, fn) {
+  var cmd = [
+    'ffmpeg',
+    '-y', // overwrite existing files, use '-n' instead to not overwrite
+    '-i ' + shellesc(video),
+    '-itsoffset ' + timefmt(offset),
+    '-i ' + shellesc(audio),
+    '-vcodec h264',
+    '-acodec libfaac',
+    shellesc(out)
+  ].join(' ');
+
+  console.log(cmd);
+
+  exec(cmd, fn);
+};
+
+// main
+
+dirs.forEach(function (dir) {
+  readmeta(path.resolve(dir, 'metadata.json'), function (err, data) {
+    var audios = {}, // audio streams: ssrc => info
+        videos = {}, // video streams: ssrc => info
+        events = [], // speaker change events
+        vname,       // mixed video file name
+        aname,       // mixed audio file name
+        name;        // combined a/v output file name
+
+    if (err) throw err;
+
+    data.audio.forEach(function (a) {
+      audios[a.ssrc] = a; // map ssrc => audio
+    });
+
+    data.video.forEach(function (v) {
+      if (v.type === 'RECORDING_STARTED') {
+        videos[v.ssrc] = v; // map ssrc => video
+      } else if (v.type === 'SPEAKER_CHANGED') {
+        events = v;
+      }
+    });
+
+    vname = path.resolve(dir, 'mixed-video.flv');
+    aname = path.resolve(dir, 'mixed-audio.mp3');
+    name  = path.resolve(dir, 'mixed.flv');
+
+    vmix(dir, videos, audios, events, vname, function (err, stdout, stderr) {
+      if (err) {
+        console.error(stderr);
+        process.exit(err.code);
+      }
+
+      amix(dir, videos, audios, events, aname, function (err, stdout, stderr) {
+        if (err) {
+          console.error(stderr);
+          process.exit(err.code);
+        }
+
+        var t0v = videos[timesort(videos)[0]].instant;
+        var t0a = audios[timesort(audios)[0]].instant;
+        var offset = t0a - t0v;
+
+        combine(vname, aname, offset, name, function (err, stdout, stderr) {
+          if (err) {
+            console.error(stderr);
+            process.exit(err.code);
+          }
+        });
+      });
+    });
+  });
+});
