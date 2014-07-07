@@ -5,10 +5,17 @@ var express = require('express'),
     path = require('path'),
     fs = require('fs');
 
-var dir = process.argv[2];
-if (dir) process.chdir(dir);
+var basedir = path.resolve(process.argv[2]);
 
-console.log('Starting in "%s"', process.cwd());
+if (!basedir) {
+  // console.error(usage);
+  process.exit(1);
+}
+
+if (!fs.existsSync(basedir)) {
+  console.error('Could not find directory "%s"', basedir);
+  process.exit(1);
+}
 
 var app = express();
 var port = 8082;
@@ -17,23 +24,27 @@ var port = 8082;
 
 app.use(morgan('default'));
 app.use(static('public', {index: ['index.htm', 'index.html']}));
+app.use(static(basedir, {}));
 
 app.get('/api/conferences.json', function (req, res) {
-  glob('*/metadata.json', function (err, matches) {
-    if (err) return res.send(500, {error: err});
-    res.send(matches.map(function (path) {
+  glob('*/metadata.json', {cwd: basedir}, function (err, matches) {
+    if (err) return res.json(500, {error: err});
+    res.json(matches.map(function (path) {
       return {id: path.split('/')[0]};
     }));
   });
 });
 
 app.get('/api/conferences/:id.json', function (req, res) {
-  var options = {encoding: 'utf-8'};
-  var id = req.params.id;
+  var options = {encoding: 'utf-8'},
+      id = req.params.id;
 
-  fs.readFile(path.join(id, 'metadata.json'), options, function (err, data) {
-    if (err) return res.send(500, {error: err});
-    res.send({id: id, metadata: JSON.parse(data)});
+  var metafile = path.join(basedir, id, 'metadata.json');
+
+  fs.readFile(metafile, options, function (err, data) {
+    if (err) return res.json(500, {error: err});
+    var src = path.join(id, 'mixed.flv');
+    res.json({id: id, src: src, metadata: JSON.parse(data)});
   });
 });
 
