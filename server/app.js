@@ -48,9 +48,9 @@ app.get('/api/conferences/:id.json', function (req, res) {
 
   fs.readFile(metafile, options, function (err, data) {
     if (err) return res.json(500, {error: err});
-    fs.exists(path.join(basedir, id, 'mixed.flv'), function (exists) {
+    fs.exists(path.join(basedir, id, 'mixed.webm'), function (exists) {
       var info = {id: id, metadata: JSON.parse(data)};
-      if (exists) info.src = path.join('/files', id, 'mixed.flv');
+      if (exists) info.src = path.join('/files', id, 'mixed.webm');
       res.json(info);
     });
   });

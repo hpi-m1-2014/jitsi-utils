@@ -18,12 +18,19 @@
 
     var Player = React.createClass({
       render: function () {
-        return React.DOM.div({}, '');
+        if (this.props.src) {
+          return React.DOM.video({
+            src: this.props.src,
+            controls: true
+          });
+        } else {
+          return React.DOM.div({}, 'Waiting...');
+        }
       }
     });
 
     var App = React.createClass({
-      getIntialState: function () {
+      getInitialState: function () {
         return {conference: {}};
       },
       componentDidMount: function () {
@@ -45,15 +52,20 @@
           var action;
 
           if (conference.src) {
-            // display(conference);
+            this.setState({conference: conference});
           } else {
             action = '/api/conferences/' + conference.id + '/actions/mix.json';
-            // $.post(action, display);
+            $.post(action, function (conference) {
+              this.setState({conference: conference});
+            }.bind(this));
           }
-        });
+        }.bind(this));
       },
       render: function () {
-        return React.DOM.h2({}, 'Show');
+        return React.DOM.div({}, [
+          React.DOM.h2({}, 'Show'),
+          Player({src: this.state.conference.src})
+        ]);
       }
     });
 
