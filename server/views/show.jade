@@ -1,0 +1,81 @@
+extends layout
+
+block content
+  script.
+    var Header = React.createClass({
+      render: function () {
+        return React.DOM.h2({}, [
+          React.DOM.span({className: 'glyphicon glyphicon-film'}),
+          ' Show'
+        ]);
+      }
+    });
+
+    var Timeline = React.createClass({
+      render: function () {
+        var metadata = this.props.metadata;
+
+        // var video = metadata.video;
+        // var timespan = video[video.length - 1] - video[0].instant;
+
+        var colors = {};
+
+        // video..filter(function (event) {
+        //   return event.type === 'RECORDING_STARTED';
+        // }).forEach(function (event) {
+        //   colors[event.ssrc] = color.
+        // });
+
+        // video.filter(function (event) {
+        //   return event.type === 'SPEAKER_CHANGED';
+        // });
+
+        return React.DOM.div({}, '');
+      }
+    });
+
+    var Player = React.createClass({
+      render: function () {
+        if (this.props.src) {
+          return React.DOM.video({
+            src: this.props.src,
+            controls: true
+          });
+        } else {
+          return React.DOM.div({}, 'Waiting...');
+        }
+      }
+    });
+
+    var App = React.createClass({
+      getInitialState: function () {
+        return {conference: {}};
+      },
+      componentDidMount: function () {
+        var id = this.props.id;
+        $.get('/api/conferences/' + id + '.json', function (conference) {
+          var action;
+
+          if (conference.src) {
+            this.setState({conference: conference});
+          } else {
+            action = '/api/conferences/' + conference.id + '/actions/mix.json';
+            $.post(action, function (conference) {
+              this.setState({conference: conference});
+            }.bind(this));
+          }
+        }.bind(this));
+      },
+      render: function () {
+        var conference = this.state.conference;
+        return React.DOM.div({
+          className: 'container'
+        }, [
+          Header({}),
+          Timeline({metadata: conference.metadata}),
+          Player({src: conference.src})
+        ]);
+      }
+    });
+
+    React.renderComponent(App({id: '#{id}'}), document.getElementById('app'));

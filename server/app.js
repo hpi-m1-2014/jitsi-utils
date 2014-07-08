@@ -31,6 +31,18 @@ app.use(morgan('default'));
 app.use(serve('public', {index: ['index.htm', 'index.html']}));
 app.use('/files', serve(basedir, {}));
 
+// Pages
+
+app.get('/', function (req, res) {
+  res.render('index.jade', {});
+});
+
+app.get('/:id', function (req, res) {
+  res.render('show.jade', {id: req.params.id});
+});
+
+// JSON API
+
 app.get('/api/conferences.json', function (req, res) {
   glob('*/metadata.json', {cwd: basedir}, function (err, matches) {
     if (err) return res.json(500, {error: err});

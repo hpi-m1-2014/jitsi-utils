@@ -1,0 +1,61 @@
+extends layout
+
+block content
+  script.
+    var Header = React.createClass({
+      render: function () {
+        return React.DOM.h2({}, [
+          React.DOM.span({className: 'glyphicon glyphicon-hdd'}),
+          ' Recorded Conferences'
+        ]);
+      }
+    });
+
+    var ListItem = React.createClass({
+      render: function () {
+        var conference = this.props.conference;
+        return React.DOM.a({
+          className: 'list-group-item',
+          href: '/' + conference.id
+        }, conference.id);
+      }
+    });
+
+    var List = React.createClass({
+      getInitialState: function () {
+        return {
+          conferences: [],
+          loading: false
+        };
+      },
+      componentDidMount: function () {
+        $.get('/api/conferences.json', function (conferences) {
+          this.setState({
+            conferences: conferences,
+            loading: false
+          });
+        }.bind(this));
+        this.setState({conferences: [], loading: true});
+      },
+      render: function () {
+        if (this.state.loading) {
+          return React.DOM.div({}, 'Loading...');
+        }
+
+        return React.DOM.div({
+          className: 'list-group'
+        }, this.state.conferences.map(function (c) {
+          return ListItem({conference: c});
+        }));
+      }
+    });
+
+    var App = React.createClass({
+      render: function () {
+        return React.DOM.div({
+          className: 'container'
+        }, [Header({}), List({})]);
+      }
+    });
+
+    React.renderComponent(App({}), document.getElementById('app'));
