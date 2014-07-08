@@ -183,8 +183,10 @@ var vmix = function vmix(dir, videos, audios, events, out, fn) {
     vidargstr,
     '-filter_complex',
     shellesc(filterstr),
-    '-vcodec h264',
-    '-acodec libfaac',
+    // '-vcodec h264',
+    // '-acodec libfaac',
+    '-vcodec libvpx',
+    '-acodec libvorbis',
     shellesc(out)
   ].join(' ');
 
@@ -200,8 +202,10 @@ var combine = function combine(video, audio, offset, out, fn) {
     '-i ' + shellesc(video),
     '-itsoffset ' + timefmt(offset),
     '-i ' + shellesc(audio),
-    '-vcodec h264',
-    '-acodec libfaac',
+    // '-vcodec h264',
+    // '-acodec libfaac',
+    '-vcodec libvpx',
+    '-acodec libvorbis',
     shellesc(out)
   ].join(' ');
 
@@ -235,9 +239,15 @@ dirs.forEach(function (dir) {
       }
     });
 
-    vname = path.resolve(dir, 'mixed-video.flv');
-    aname = path.resolve(dir, 'mixed-audio.mp3');
-    name  = path.resolve(dir, 'mixed.flv');
+    // FLV
+    // vname = path.resolve(dir, 'mixed-video.flv');
+    // aname = path.resolve(dir, 'mixed-audio.mp3');
+    // name  = path.resolve(dir, 'mixed.flv');
+
+    // HTML5
+    vname = path.resolve(dir, 'mixed-video.webm');
+    aname = path.resolve(dir, 'mixed-audio.ogg');
+    name  = path.resolve(dir, 'mixed.webm');
 
     vmix(dir, videos, audios, events, vname, function (err, stdout, stderr) {
       if (err) {
