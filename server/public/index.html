@@ -9,8 +9,40 @@
   <div id="app"></div>
   <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
   <script src="//cdnjs.cloudflare.com/ajax/libs/react/0.10.0/react.min.js"></script>
-  <script src="javascripts/app.js"></script>
   <script>
-    app.initialize(document.getElementById('app'));
+    var ListItem = React.createClass({
+      render: function () {
+        return React.DOM.li({}, React.DOM.a({
+          href: '/show.html?cid=' + this.props.conference.id
+        }, this.props.conference.id));
+      }
+    });
+
+    var List = React.createClass({
+      getInitialState: function () {
+        return {conferences: []};
+      },
+      componentDidMount: function () {
+        $.get('/api/conferences.json', function (conferences) {
+          this.setState({conferences: conferences});
+        }.bind(this));
+      },
+      render: function () {
+        return React.DOM.div({}, [
+          React.DOM.h2({}, 'Recorded Conferences'),
+          React.DOM.ul({}, this.state.conferences.map(function (c) {
+            return ListItem({conference: c});
+          }))
+        ]);
+      }
+    });
+
+    var App = React.createClass({
+      render: function () {
+        return React.DOM.div({}, List({}));
+      }
+    });
+
+    React.renderComponent(App({}), document.getElementById('app'));
   </script>
 </body>
