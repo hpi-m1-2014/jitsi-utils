@@ -4,9 +4,11 @@ block content
   script.
     var Header = React.createClass({
       render: function () {
-        return React.DOM.h2({}, [
-          React.DOM.span({className: 'glyphicon glyphicon-film'}),
-          ' Show'
+        return React.DOM.h3({}, [
+          React.DOM.span({className: 'glyphicon glyphicon-hdd dir-icon'}),
+          React.DOM.a({href: '/'}, 'Recordings'),
+          React.DOM.span({className: 'dir-sep'}, '/'),
+          React.DOM.span({}, this.props.id)
         ]);
       }
     });
@@ -36,14 +38,35 @@ block content
 
     var Player = React.createClass({
       render: function () {
+        var content;
+
         if (this.props.src) {
-          return React.DOM.video({
+          content = React.DOM.video({
             src: this.props.src,
-            controls: true
+            controls: true,
+            className: 'center-block',
+            style: {maxWidth: '100%'}
           });
         } else {
-          return React.DOM.div({}, 'Waiting...');
+          content = React.DOM.div({
+            className: 'progress'
+          }, [
+            React.DOM.div({
+              className: 'progress-bar progress-bar-striped active',
+              style: {
+                width: '100%'
+              }
+            })
+          ]);
         }
+
+        return React.DOM.div({
+          className: 'panel panel-default'
+        }, [
+          React.DOM.div({
+            className: 'panel-body'
+          }, content)
+        ]);
       }
     });
 
@@ -71,7 +94,7 @@ block content
         return React.DOM.div({
           className: 'container'
         }, [
-          Header({}),
+          Header({id: this.props.id}),
           Timeline({metadata: conference.metadata}),
           Player({src: conference.src})
         ]);

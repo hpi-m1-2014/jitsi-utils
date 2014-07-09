@@ -4,9 +4,9 @@ block content
   script.
     var Header = React.createClass({
       render: function () {
-        return React.DOM.h2({}, [
-          React.DOM.span({className: 'glyphicon glyphicon-hdd'}),
-          ' Recorded Conferences'
+        return React.DOM.h3({}, [
+          React.DOM.span({className: 'glyphicon glyphicon-hdd dir-icon'}),
+          React.DOM.a({href: '/'}, 'Recordings')
         ]);
       }
     });

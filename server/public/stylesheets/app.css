@@ -1,0 +1,13 @@
+.dir-icon {
+  color: #ccc;
+  top: 4px;
+  margin-right: 12px;
+}
+
+.dir-sep {
+  font-size: 85%;
+  font-weight: normal;
+  color: #777;
+  margin-left: 6px;
+  margin-right: 4px;
+}

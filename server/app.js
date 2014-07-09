@@ -20,6 +20,10 @@ if (!fs.existsSync(basedir)) {
   process.exit(1);
 }
 
+// Switch into the app directory
+
+process.chdir(__dirname);
+
 // Configure the application
 
 var app = express();
@@ -73,6 +77,7 @@ app.post('/api/conferences/:id/actions/mix.json', function (req, res) {
 
   var cmd = '../scripts/mixall "' + path.join(basedir, id) + '"';
 
+  // TODO: Not yet concurrency-enabled (multiple users calling "mix" action)
   exec(cmd, function (err, stdout, stderr) {
     if (err) return res.json(500, {error: err});
     res.redirect('/api/conferences/' + id + '.json');
