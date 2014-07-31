@@ -1,61 +1,74 @@
 extends layout
 
 block content
-  script.
-    var Header = React.createClass({
-      render: function () {
-        return React.DOM.h3({}, [
-          React.DOM.span({className: 'glyphicon glyphicon-hdd dir-icon'}),
-          React.DOM.a({href: '/'}, 'Recordings')
-        ]);
-      }
-    });
-
-    var ListItem = React.createClass({
-      render: function () {
-        var conference = this.props.conference;
-        return React.DOM.a({
-          className: 'list-group-item',
-          href: '/' + conference.id
-        }, conference.id);
-      }
-    });
-
-    var List = React.createClass({
-      getInitialState: function () {
-        return {
-          conferences: [],
-          loading: false
-        };
-      },
-      componentDidMount: function () {
-        $.get('/api/conferences.json', function (conferences) {
-          this.setState({
-            conferences: conferences,
-            loading: false
-          });
-        }.bind(this));
-        this.setState({conferences: [], loading: true});
-      },
-      render: function () {
-        if (this.state.loading) {
-          return React.DOM.div({}, 'Loading...');
+    script.
+      var Header = React.createClass({
+        render: function () {
+          return React.DOM.h3({}, [
+            React.DOM.span({className: 'glyphicon glyphicon-hdd dir-icon'}),
+            React.DOM.a({href: '/'}, 'Recordings')
+          ]);
         }
+      });
 
-        return React.DOM.div({
-          className: 'list-group'
-        }, this.state.conferences.map(function (c) {
-          return ListItem({conference: c});
-        }));
-      }
-    });
+      var ListItem = React.createClass({
+        render: function () {
+          var conference = this.props.conference;
 
-    var App = React.createClass({
-      render: function () {
-        return React.DOM.div({
-          className: 'container'
-        }, [Header({}), List({})]);
-      }
-    });
+          var span = React.DOM.span({}, conference.id);
 
-    React.renderComponent(App({}), document.getElementById('app'));
+          var mixLink = React.DOM.a({
+            className: 'mix',
+            href: '/' + conference.id
+          }, "Mix videos");
+
+          var encodedBaseUrl = encodeURIComponent(conference.id);
+          var integratedPlayerLink = React.DOM.a({
+            className: 'integratedPlayer',
+            href: 'http://localhost:8000/?directory=' +encodedBaseUrl
+            }, "Open in integrated player")
+
+          return React.DOM.div({
+            className: 'list-group-item',
+          }, [span, mixLink, integratedPlayerLink]);
+        }
+      });
+
+      var List = React.createClass({
+        getInitialState: function () {
+          return {
+            conferences: [],
+            loading: false
+          };
+        },
+        componentDidMount: function () {
+          $.get('/api/conferences.json', function (conferences) {
+            this.setState({
+              conferences: conferences,
+              loading: false
+            });
+          }.bind(this));
+          this.setState({conferences: [], loading: true});
+        },
+        render: function () {
+          if (this.state.loading) {
+            return React.DOM.div({}, 'Loading...');
+          }
+
+          return React.DOM.div({
+            className: 'list-group'
+          }, this.state.conferences.map(function (c) {
+            return ListItem({conference: c});
+          }));
+        }
+      });
+
+      var App = React.createClass({
+        render: function () {
+          return React.DOM.div({
+            className: 'container'
+          }, [Header({}), List({})]);
+        }
+      });
+
+      React.renderComponent(App({}), document.getElementById('app'));
